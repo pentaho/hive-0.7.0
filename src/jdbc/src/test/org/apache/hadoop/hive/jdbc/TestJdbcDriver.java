@@ -18,14 +18,11 @@
 
 package org.apache.hadoop.hive.jdbc;
 
-import junit.framework.TestCase;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
-
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -36,6 +33,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import junit.framework.TestCase;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 
 /**
  * TestJdbcDriver.
@@ -102,6 +102,19 @@ public class TestJdbcDriver extends TestCase {
         + dataFilePath.toString() + "' into table " + tableName);
     assertFalse(res.next());
 
+    // create the prepared statement test table
+    String preparedStatementTableDDL = "create table "+preparedStatementTestTable
+      +"( int_column int, "
+      +"  string_column string, "
+      +"  boolean_column boolean)";
+    res = stmt.executeQuery(preparedStatementTableDDL);
+    assertFalse(res.next());
+
+    // load data
+    res = stmt.executeQuery("load data local inpath '"
+        + dataFilePathForPreparedStatementTests.toString() + "' into table " + preparedStatementTestTable);
+    assertFalse(res.next());
+
     // also initialize a paritioned table to test against.
 
     // drop table. ignore error.
@@ -160,6 +173,7 @@ public class TestJdbcDriver extends TestCase {
     assertFalse(res.next());
   }
 
+  @Override
   protected void tearDown() throws Exception {
     super.tearDown();
 
@@ -171,6 +185,9 @@ public class TestJdbcDriver extends TestCase {
     res = stmt.executeQuery("drop table " + partitionedTableName);
     assertFalse(res.next());
     res = stmt.executeQuery("drop table " + dataTypeTableName);
+    assertFalse(res.next());
+
+    res = stmt.executeQuery("drop table " + preparedStatementTestTable);
     assertFalse(res.next());
 
     con.close();
@@ -702,4 +719,63 @@ public class TestJdbcDriver extends TestCase {
     assertEquals("Invalid DriverPropertyInfo value", value, dpi.value);
     assertEquals("Invalid DriverPropertyInfo required", false, dpi.required);
   }
+
+  public void testPreparedStatementAndResultSet() throws SQLException {
+
+    //  test execution with boolean returned
+    PreparedStatement preparedStatement = con.prepareStatement("select * from "+preparedStatementTestTable);
+    assertTrue(preparedStatement.execute());
+
+    //  test execution with result set returned
+    preparedStatement = con.prepareStatement("select * from "+preparedStatementTestTable);
+    ResultSet resultSet = preparedStatement.executeQuery();
+    assertTrue(resultSet!=null);
+
+    //  test using max rows
+    int maxRows = 1;
+    int numRowsReturned = 0;
+    con.prepareStatement("select * from "+preparedStatementTestTable);
+    preparedStatement.setMaxRows(1);
+    resultSet = preparedStatement.executeQuery();
+    for(numRowsReturned=0; resultSet.next(); numRowsReturned++) {
+      ;
+    }
+    assertTrue(numRowsReturned==1);
+
+    //  test getting the columns and the sign
+    preparedStatement = con.prepareStatement("select * from "+preparedStatementTestTable);
+    resultSet = preparedStatement.executeQuery();
+    ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+    assertTrue(resultSet!=null);
+
+    // reminder: this is the table:
+    //  INT      intColumn
+    //  STRING   stringColumn
+    //  BOOLEAN  booleanColumn
+    int columnIndex = 0;
+    columnIndex = resultSet.findColumn("int_column");
+    assertTrue(columnIndex == 1);
+    assertTrue(resultSetMetaData.isSigned(1));
+
+    columnIndex = resultSet.findColumn("string_column");
+    assertTrue(columnIndex == 2);
+    assertFalse(resultSetMetaData.isSigned(2));
+
+    columnIndex = resultSet.findColumn("boolean_column");
+    assertTrue(columnIndex == 3);
+    assertFalse(resultSetMetaData.isSigned(3));
+
+    //  test clear warnings
+    preparedStatement.clearWarnings();
+    assertTrue(preparedStatement.getWarnings()==null);
+
+    //  test to see if column name is shown in the exception
+    try {
+      resultSet.findColumn("sean");
+    }
+    catch (SQLException se) {
+      assertTrue(se.getMessage().startsWith("Column not found"));
+    }
+  }
+
 }

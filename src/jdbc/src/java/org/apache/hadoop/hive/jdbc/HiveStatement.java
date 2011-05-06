@@ -190,7 +190,7 @@ public class HiveStatement implements java.sql.Statement {
     } catch (Exception ex) {
       throw new SQLException(ex.toString(), "08S01");
     }
-    resultSet = new HiveQueryResultSet(client, maxRows);
+    resultSet = new HiveQueryResultSet(client, this, maxRows);
     return resultSet;
   }
 

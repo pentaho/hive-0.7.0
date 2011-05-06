@@ -39,7 +39,9 @@ import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Locale;
 
 import org.apache.hadoop.hive.service.HiveInterface;
 import org.apache.hadoop.hive.service.HiveServerException;
@@ -48,9 +50,9 @@ import org.apache.hadoop.hive.service.HiveServerException;
  * HivePreparedStatement.
  *
  */
-public class HivePreparedStatement implements PreparedStatement {
+public class HivePreparedStatement implements PreparedStatement, HivePreparedStatementInterface {
   private String sql;
-  private JdbcSessionState session;
+  private final JdbcSessionState session;
   private HiveInterface client;
   /**
    * We need to keep a reference to the result set to support the following:
@@ -63,18 +65,23 @@ public class HivePreparedStatement implements PreparedStatement {
   /**
    * The maximum number of rows this statement should return (0 => all rows).
    */
-  private final int maxRows = 0;
+  private int maxRows = 0;
 
   /**
    * Add SQLWarnings to the warningChain if needed.
    */
-  private final SQLWarning warningChain = null;
+  private SQLWarning warningChain = null;
 
   /**
    * Keep state so we can fail certain calls made after close().
    */
   private boolean isClosed = false;
-
+  
+  /**
+   * 
+   */
+  ArrayList<HiveParameterValue> parameters = null;
+  
   /**
    *
    */
@@ -82,12 +89,13 @@ public class HivePreparedStatement implements PreparedStatement {
       String sql) {
     this.session = session;
     this.client = client;
-    this.sql = sql;
+    this.sql = sql.toLowerCase(Locale.ROOT).trim();
+    parseParameters();
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#addBatch()
    */
 
@@ -98,7 +106,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#clearParameters()
    */
 
@@ -117,7 +125,16 @@ public class HivePreparedStatement implements PreparedStatement {
    */
 
   public boolean execute() throws SQLException {
-    ResultSet rs = executeImmediate(sql);
+    ResultSet rs = null;
+    if (parameters!=null && parameters.size() > 0) {
+      rs = executeImmediate(constructSQL());
+    }
+    else {
+      rs = executeImmediate(sql);
+    }
+  
+    // TODO: this should really check if there are results, but there's no easy
+    // way to do that without calling rs.next();
     return rs != null;
   }
 
@@ -129,7 +146,16 @@ public class HivePreparedStatement implements PreparedStatement {
    */
 
   public ResultSet executeQuery() throws SQLException {
-    return executeImmediate(sql);
+    
+    ResultSet rs = null;
+    if (parameters!=null && parameters.size() > 0) {
+      rs = executeImmediate(constructSQL());
+    }
+    else {
+      rs = executeImmediate(sql);
+    }
+    
+    return rs;
   }
 
   /*
@@ -137,10 +163,13 @@ public class HivePreparedStatement implements PreparedStatement {
    * 
    * @see java.sql.PreparedStatement#executeUpdate()
    */
-
   public int executeUpdate() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    
+    ResultSet resultSet = executeImmediate(constructSQL());
+    
+    int rowsUpdated = 0; // how do I get this value?
+
+    return rowsUpdated;
   }
 
   /**
@@ -167,26 +196,26 @@ public class HivePreparedStatement implements PreparedStatement {
     } catch (Exception ex) {
       throw new SQLException(ex.toString(), "08S01");
     }
-    resultSet = new HiveQueryResultSet(client, maxRows);
+    resultSet = new HiveQueryResultSet(client, this, maxRows);
     return resultSet;
   }
 
 
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.PreparedStatement#getMetaData()
+  /**
+   *  Returns the result set meta data.  If a result set was not created by running an execute or executeQuery then a null is returned.
+   *
+   *  @return null is returned if the result set is null
+   *  @throws
    */
 
   public ResultSetMetaData getMetaData() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    return resultSet == null ? null : resultSet.getMetaData();
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#getParameterMetaData()
    */
 
@@ -197,7 +226,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setArray(int, java.sql.Array)
    */
 
@@ -208,7 +237,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setAsciiStream(int, java.io.InputStream)
    */
 
@@ -219,7 +248,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setAsciiStream(int, java.io.InputStream,
    * int)
    */
@@ -231,7 +260,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setAsciiStream(int, java.io.InputStream,
    * long)
    */
@@ -243,7 +272,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBigDecimal(int, java.math.BigDecimal)
    */
 
@@ -254,7 +283,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBinaryStream(int, java.io.InputStream)
    */
 
@@ -265,7 +294,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBinaryStream(int, java.io.InputStream,
    * int)
    */
@@ -277,7 +306,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBinaryStream(int, java.io.InputStream,
    * long)
    */
@@ -289,7 +318,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBlob(int, java.sql.Blob)
    */
 
@@ -300,7 +329,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBlob(int, java.io.InputStream)
    */
 
@@ -311,7 +340,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBlob(int, java.io.InputStream, long)
    */
 
@@ -323,7 +352,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBoolean(int, boolean)
    */
 
@@ -334,7 +363,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setByte(int, byte)
    */
 
@@ -345,7 +374,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setBytes(int, byte[])
    */
 
@@ -356,7 +385,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setCharacterStream(int, java.io.Reader)
    */
 
@@ -367,7 +396,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setCharacterStream(int, java.io.Reader,
    * int)
    */
@@ -380,7 +409,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setCharacterStream(int, java.io.Reader,
    * long)
    */
@@ -393,7 +422,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setClob(int, java.sql.Clob)
    */
 
@@ -404,7 +433,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setClob(int, java.io.Reader)
    */
 
@@ -415,7 +444,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setClob(int, java.io.Reader, long)
    */
 
@@ -426,7 +455,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setDate(int, java.sql.Date)
    */
 
@@ -437,7 +466,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setDate(int, java.sql.Date,
    * java.util.Calendar)
    */
@@ -449,51 +478,49 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setDouble(int, double)
    */
 
   public void setDouble(int parameterIndex, double x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    setHiveParameter(parameters.get(parameterIndex-1), double.class.getName(), java.sql.Types.DOUBLE, x);
+    
+
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setFloat(int, float)
    */
 
   public void setFloat(int parameterIndex, float x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    setHiveParameter(parameters.get(parameterIndex-1), float.class.getName(), java.sql.Types.FLOAT, x);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setInt(int, int)
    */
 
   public void setInt(int parameterIndex, int x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    setHiveParameter(parameters.get(parameterIndex-1), int.class.getName(), java.sql.Types.INTEGER, x);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setLong(int, long)
    */
 
   public void setLong(int parameterIndex, long x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    setHiveParameter(parameters.get(parameterIndex-1), long.class.getName(), java.sql.Types.INTEGER, x);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNCharacterStream(int, java.io.Reader)
    */
 
@@ -504,7 +531,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNCharacterStream(int, java.io.Reader,
    * long)
    */
@@ -517,7 +544,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNClob(int, java.sql.NClob)
    */
 
@@ -528,7 +555,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNClob(int, java.io.Reader)
    */
 
@@ -539,7 +566,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNClob(int, java.io.Reader, long)
    */
 
@@ -550,7 +577,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNString(int, java.lang.String)
    */
 
@@ -561,64 +588,105 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNull(int, int)
    */
 
   public void setNull(int parameterIndex, int sqlType) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    HiveParameterValue hiveParameterValue =  parameters.get(parameterIndex-1);
+    hiveParameterValue.setSqlType(sqlType);
+    hiveParameterValue.setValue(null);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setNull(int, int, java.lang.String)
    */
 
-  public void setNull(int paramIndex, int sqlType, String typeName) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+  public void setNull(int paramIndex, int sqlType, String typeName)
+      throws SQLException {
+    
+    HiveParameterValue hiveParameterValue =  parameters.get(paramIndex-1);
+    hiveParameterValue.setSqlType(sqlType);
+    hiveParameterValue.setJavaType(typeName);
+    hiveParameterValue.setValue(null);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setObject(int, java.lang.Object)
    */
 
   public void setObject(int parameterIndex, Object x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    baseSetObject(parameterIndex, x, null, null);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setObject(int, java.lang.Object, int)
    */
 
   public void setObject(int parameterIndex, Object x, int targetSqlType)
       throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    baseSetObject(parameterIndex, x, targetSqlType, null);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setObject(int, java.lang.Object, int, int)
    */
 
-  public void setObject(int parameterIndex, Object x, int targetSqlType, int scale)
-      throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+  public void setObject(int parameterIndex, Object x, int targetSqlType,
+      int scale) throws SQLException {
+    baseSetObject(parameterIndex, x, targetSqlType, scale);
+  }
+  
+  protected void baseSetObject(Integer parameterIndex, Object x, Integer targetSqlType,
+      Integer scale) throws SQLException {
+    
+    int sqlType = targetSqlType == null ? java.sql.Types.OTHER : targetSqlType;
+    int typeMatches = 0;
+    
+    if(x instanceof Short) {
+      typeMatches++;
+      sqlType = java.sql.Types.TINYINT;
+    }
+    if(x instanceof Integer) {
+      typeMatches++;
+      sqlType = java.sql.Types.INTEGER;
+    }
+    if(x instanceof Long) {
+      typeMatches++;
+      sqlType = java.sql.Types.INTEGER;
+    }
+    if(x instanceof Double) {
+      typeMatches++;
+      sqlType = java.sql.Types.DOUBLE;
+    }
+    if(x instanceof Float) {
+      typeMatches++;
+      sqlType = java.sql.Types.FLOAT;
+    }
+    if(x instanceof String) {
+      typeMatches++;
+      if(scale != null) {
+        sqlType = java.sql.Types.CHAR;
+      } else {
+        sqlType = java.sql.Types.VARCHAR;
+      }
+    }
+    // TODO: Add more mappings
+    //  Ref, Blob, Clob, NClob, Struct, java.net.URL, RowId, SQLXML, Array, SQLData
+    setHiveParameter(parameters.get(parameterIndex-1), x != null ? x.getClass().getName() : java.lang.Object.class.getName(), sqlType, x);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setRef(int, java.sql.Ref)
    */
 
@@ -629,7 +697,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setRowId(int, java.sql.RowId)
    */
 
@@ -640,7 +708,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setSQLXML(int, java.sql.SQLXML)
    */
 
@@ -651,29 +719,27 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setShort(int, short)
    */
 
   public void setShort(int parameterIndex, short x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    setHiveParameter(parameters.get(parameterIndex-1), "short", java.sql.Types.TINYINT,  x);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setString(int, java.lang.String)
    */
 
   public void setString(int parameterIndex, String x) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    setHiveParameter(parameters.get(parameterIndex-1), "String", java.sql.Types.VARCHAR, x);
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setTime(int, java.sql.Time)
    */
 
@@ -684,7 +750,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setTime(int, java.sql.Time,
    * java.util.Calendar)
    */
@@ -696,7 +762,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setTimestamp(int, java.sql.Timestamp)
    */
 
@@ -707,7 +773,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setTimestamp(int, java.sql.Timestamp,
    * java.util.Calendar)
    */
@@ -720,7 +786,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setURL(int, java.net.URL)
    */
 
@@ -731,7 +797,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.PreparedStatement#setUnicodeStream(int, java.io.InputStream,
    * int)
    */
@@ -744,7 +810,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#addBatch(java.lang.String)
    */
 
@@ -755,7 +821,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#cancel()
    */
 
@@ -766,7 +832,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#clearBatch()
    */
 
@@ -782,8 +848,7 @@ public class HivePreparedStatement implements PreparedStatement {
    */
 
   public void clearWarnings() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    warningChain = null;
   }
 
   /**
@@ -808,8 +873,12 @@ public class HivePreparedStatement implements PreparedStatement {
    */
 
   public boolean execute(String sql) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    this.sql = sql;
+    ResultSet rs = executeQuery(sql);
+
+    // TODO: this should really check if there are results, but there's no easy
+    // way to do that without calling rs.next();
+    return rs != null;
   }
 
   /*
@@ -825,7 +894,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#execute(java.lang.String, int[])
    */
 
@@ -836,7 +905,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#execute(java.lang.String, java.lang.String[])
    */
 
@@ -847,7 +916,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#executeBatch()
    */
 
@@ -856,20 +925,37 @@ public class HivePreparedStatement implements PreparedStatement {
     throw new SQLException("Method not supported");
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.Statement#executeQuery(java.lang.String)
+  /**
+   *  Invokes executeQuery(sql) using the passed sql and returns the result set.
+   *
+   *  @param sql The sql, as a string, to execute
+   *  @return boolean Returns true if a resultSet is created, false if not.
+   *                  Note: If the result set is empty a true is returned.
+   *  @throws SQLException if the prepared statement is closed or there is a database error.
+   *                       caught Exceptions are thrown as SQLExceptioms with the description
+   *                       "08S01".
    */
 
   public ResultSet executeQuery(String sql) throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    if (isClosed) {
+      throw new SQLException("Can't execute after statement has been closed");
+    }
+
+    try {
+      resultSet = null;
+      client.execute(sql);
+    } catch (HiveServerException e) {
+      throw new SQLException(e.getMessage(), e.getSQLState(), e.getErrorCode());
+    } catch (Exception ex) {
+      throw new SQLException(ex.toString(), "08S01");
+    }
+    resultSet = new HiveQueryResultSet(client, maxRows);
+    return resultSet;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#executeUpdate(java.lang.String)
    */
 
@@ -880,7 +966,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#executeUpdate(java.lang.String, int)
    */
 
@@ -891,7 +977,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#executeUpdate(java.lang.String, int[])
    */
 
@@ -902,7 +988,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#executeUpdate(java.lang.String, java.lang.String[])
    */
 
@@ -913,7 +999,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getConnection()
    */
 
@@ -924,7 +1010,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getFetchDirection()
    */
 
@@ -935,7 +1021,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getFetchSize()
    */
 
@@ -946,7 +1032,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getGeneratedKeys()
    */
 
@@ -957,7 +1043,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getMaxFieldSize()
    */
 
@@ -966,20 +1052,19 @@ public class HivePreparedStatement implements PreparedStatement {
     throw new SQLException("Method not supported");
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.Statement#getMaxRows()
+  /**
+   * Retrurns the value of maxRows.
+   *
+   * @return
    */
 
   public int getMaxRows() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    return maxRows;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getMoreResults()
    */
 
@@ -990,7 +1075,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getMoreResults(int)
    */
 
@@ -1001,7 +1086,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getQueryTimeout()
    */
 
@@ -1010,20 +1095,19 @@ public class HivePreparedStatement implements PreparedStatement {
     throw new SQLException("Method not supported");
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.Statement#getResultSet()
+  /**
+   *  Returns the resultSet.
+   *
+   *  @return
    */
 
   public ResultSet getResultSet() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    return resultSet;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getResultSetConcurrency()
    */
 
@@ -1034,7 +1118,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getResultSetHoldability()
    */
 
@@ -1045,7 +1129,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getResultSetType()
    */
 
@@ -1056,40 +1140,39 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#getUpdateCount()
    */
 
   public int getUpdateCount() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    // throw new SQLException("Method not supported");
+    // Updated to Pentaho's code:
+    return 0;
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.Statement#getWarnings()
+  /**
+   * Returns the SQL warning chain
+   *
+   * @return
    */
 
   public SQLWarning getWarnings() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    return warningChain;
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.Statement#isClosed()
+  /**
+   * Returns a boolean value that idndicates of the statement is closed.
+   *
+   * @return
    */
 
   public boolean isClosed() throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    return isClosed;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#isPoolable()
    */
 
@@ -1100,7 +1183,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setCursorName(java.lang.String)
    */
 
@@ -1111,7 +1194,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setEscapeProcessing(boolean)
    */
 
@@ -1122,7 +1205,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setFetchDirection(int)
    */
 
@@ -1133,7 +1216,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setFetchSize(int)
    */
 
@@ -1144,7 +1227,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setMaxFieldSize(int)
    */
 
@@ -1153,20 +1236,23 @@ public class HivePreparedStatement implements PreparedStatement {
     throw new SQLException("Method not supported");
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see java.sql.Statement#setMaxRows(int)
+  /**
+   *  Sets the limit for the maximum number of rows that any ResultSet can obtain.
+   *
+   *  @param max - the maximum number of rows that a result set can have.
+   *  @throws
    */
 
   public void setMaxRows(int max) throws SQLException {
-    // TODO Auto-generated method stub
-    // throw new SQLException("Method not supported");
+    if (max < 0) {
+      throw new SQLException("max must be >= 0");
+    }
+    maxRows = max;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setPoolable(boolean)
    */
 
@@ -1177,7 +1263,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Statement#setQueryTimeout(int)
    */
 
@@ -1188,7 +1274,7 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Wrapper#isWrapperFor(java.lang.Class)
    */
 
@@ -1199,13 +1285,124 @@ public class HivePreparedStatement implements PreparedStatement {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.sql.Wrapper#unwrap(java.lang.Class)
    */
 
   public <T> T unwrap(Class<T> iface) throws SQLException {
     // TODO Auto-generated method stub
     throw new SQLException("Method not supported");
+  } 
+   
+  /**
+   * 
+   */
+  private void parseParameters() {
+    String sqlToHack = sql; 
+    parameters = new ArrayList<HiveParameterValue>();
+    int parameterPos = sqlToHack.indexOf('?');
+    while (parameterPos > 0) {
+      parameters.add(new HiveParameterValue());
+      sqlToHack = sqlToHack.substring(parameterPos+1);
+      parameterPos = sqlToHack.indexOf('?');
+    }
   }
 
+  @Override
+  public ArrayList<HiveParameterValue> getParameters() {
+    return this.parameters;
+  }
+  
+  
+  /**
+   * Sets the javaType and value of the hiveParameter.
+   * 
+   * @param hiveParameter
+   * @param javaType
+   * @param value
+   */
+  private void setHiveParameter(HiveParameterValue hiveParameterValue, String javaType, int sqlType, Object value) {
+    hiveParameterValue.setJavaType(javaType);
+    hiveParameterValue.setValue(value);
+    hiveParameterValue.setSqlType(sqlType);
+  }
+  
+  
+  /**
+   * Constructs the SQL statement from the parameter list 
+   * and the SQL property. 
+   * 
+   * @param hivePreparedStatement
+   * @return String A SQL statement with the parameters repalces by the valuews that were set
+   */
+  @Override
+  public String constructSQL() 
+        throws SQLException {
+
+      StringBuilder sqlToConstruct = new StringBuilder();
+      String sqlToHack = sql;
+      int parameterPosition = 0;
+            
+      for(HiveParameterValue hiveParameterValue: parameters) {
+        
+        //  get get the position of the next place holder
+        parameterPosition = sqlToHack.indexOf("?");
+
+        //  if we have no more place holders than parameters- which should not happen
+        if (parameterPosition <=0 ) {
+          throw new SQLException("More parameters have been set than have placeholders.");
+        }
+        
+        //  append the characters leading up to the place holder to the sql we are constructing
+        sqlToConstruct.append(sqlToHack.substring(0, parameterPosition-1));        
+        
+        //  if we need encolusures..
+        if (useStringEnclosure(hiveParameterValue.getSqlType())) {
+          
+          //  append the value enclosed with single quotes to the sql 
+          sqlToConstruct.append("'");
+          sqlToConstruct.append(hiveParameterValue.getValueAsString());
+          sqlToConstruct.append("'");
+        }
+        else {
+          
+          //  just append the value to the sql 
+          sqlToConstruct.append(hiveParameterValue.getValueAsString());
+        }
+        
+        //  now hack off the before the found place holder so 
+        //  we can look for the next one.
+        sqlToHack = sqlToHack.substring(parameterPosition+1);
+    }
+   
+    //  append anything left of the hacked up SQL 
+    sqlToConstruct.append(sqlToHack);
+
+    //  return the constructed sql
+    return sqlToConstruct.toString();
+  }
+
+  /**
+   * Returns a true of the passed SQLType requires a string enclosure.  Usually this
+   * is a single quote:  Example:  select * from tabe where name = 'Joe'.  
+   * The name column is a character type and the SQL statement requires that 'Joe'
+   * be quoted.
+   * 
+   * @param SQLType
+   * @return boolean
+   */
+  private boolean useStringEnclosure(int SQLType) {
+    
+    switch (SQLType) {
+      
+      case java.sql.Types.CHAR: 
+           return true;
+      
+      case java.sql.Types.VARCHAR: 
+           return true;
+      
+      default: return false;
+    }   
+  }
+  
 }

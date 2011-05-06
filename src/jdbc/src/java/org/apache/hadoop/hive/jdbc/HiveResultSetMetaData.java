@@ -30,8 +30,8 @@ import org.apache.hadoop.hive.serde.Constants;
  *
  */
 public class HiveResultSetMetaData implements java.sql.ResultSetMetaData {
-  private List<String> columnNames;
-  private List<String> columnTypes;
+  private final List<String> columnNames;
+  private final List<String> columnTypes;
 
   public HiveResultSetMetaData(List<String> columnNames,
       List<String> columnTypes) {
@@ -107,15 +107,15 @@ public class HiveResultSetMetaData implements java.sql.ResultSetMetaData {
       return Types.FLOAT;
     } else if ("double".equalsIgnoreCase(type)) {
       return Types.DOUBLE;
-    } else if ("boolean".equalsIgnoreCase(type)) {
+    } else if ("bool".equalsIgnoreCase(type) || "boolean".equalsIgnoreCase(type)) {
       return Types.BOOLEAN;
-    } else if ("tinyint".equalsIgnoreCase(type)) {
+    } else if ("byte".equalsIgnoreCase(type) || "tinyint".equalsIgnoreCase(type)) {
       return Types.TINYINT;
     } else if ("smallint".equalsIgnoreCase(type)) {
       return Types.SMALLINT;
-    } else if ("int".equalsIgnoreCase(type)) {
+    } else if ("i32".equalsIgnoreCase(type) || "int".equalsIgnoreCase(type)) {
       return Types.INTEGER;
-    } else if ("bigint".equalsIgnoreCase(type)) {
+    } else if ("i64".equalsIgnoreCase(type) || "bigint".equalsIgnoreCase(type)) {
       return Types.BIGINT;
     } else if (type.startsWith("map<")) {
       return Types.VARCHAR;
@@ -147,15 +147,15 @@ public class HiveResultSetMetaData implements java.sql.ResultSetMetaData {
       return Constants.FLOAT_TYPE_NAME;
     } else if ("double".equalsIgnoreCase(type)) {
       return Constants.DOUBLE_TYPE_NAME;
-    } else if ("boolean".equalsIgnoreCase(type)) {
+    } else if ("bool".equalsIgnoreCase(type) || "boolean".equalsIgnoreCase(type)) {
       return Constants.BOOLEAN_TYPE_NAME;
-    } else if ("tinyint".equalsIgnoreCase(type)) {
+    } else if ("byte".equalsIgnoreCase(type) || "tinyint".equalsIgnoreCase(type)) {
       return Constants.TINYINT_TYPE_NAME;
     } else if ("smallint".equalsIgnoreCase(type)) {
       return Constants.SMALLINT_TYPE_NAME;
-    } else if ("int".equalsIgnoreCase(type)) {
+    } else if ("i32".equalsIgnoreCase(type) || "int".equalsIgnoreCase(type)) {
       return Constants.INT_TYPE_NAME;
-    } else if ("bigint".equalsIgnoreCase(type)) {
+    } else if ("i64".equalsIgnoreCase(type) || "bigint".equalsIgnoreCase(type)) {
       return Constants.BIGINT_TYPE_NAME;
     } else if (type.startsWith("map<")) {
       return Constants.STRING_TYPE_NAME;
@@ -223,8 +223,37 @@ public class HiveResultSetMetaData implements java.sql.ResultSetMetaData {
     throw new SQLException("Method not supported");
   }
 
+  /**
+   * Returns a true if column is signed, false if not.
+   *
+   * This method checks the type of the passed column.  If that
+   * type is not numerical, then the result is false.
+   * If the type is a numeric then a true is returned.
+   *
+   * @param column the index of the column to test
+   * @return boolean
+   * @throws
+   */
   public boolean isSigned(int column) throws SQLException {
-    throw new SQLException("Method not supported");
+    if (columnTypes == null) {
+      throw new SQLException(
+          "Could not determine column type name for ResultSet");
+    }
+
+    if (column < 1 || column > columnTypes.size()) {
+      throw new SQLException("Invalid column value: " + column);
+    }
+
+
+    // we need to convert the thrift type to the SQL type
+    int type = getColumnType(column);
+    switch(type){
+    case Types.DOUBLE: case Types.DECIMAL: case Types.FLOAT:
+    case Types.INTEGER: case Types.REAL: case Types.SMALLINT: case Types.TINYINT:
+    case Types.BIGINT:
+      return true;
+    }
+    return false;
   }
 
   public boolean isWritable(int column) throws SQLException {
