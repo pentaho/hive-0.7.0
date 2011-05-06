@@ -1,0 +1,152 @@
+commit 43168b05342a99a52a09c060168069634d527728
+Author: Jenkins <dev-kitchen@cloudera.com>
+Date:   Sat Mar 12 13:47:19 2011 -0800
+
+    CLOUDERA-BUILD. Updating versions for cdh3u0 release.
+
+commit 1d3a4e8dd667ee5cb2a7d9d81cff572b620ba6ea
+Author: marcel <marcel@cloudera.com>
+Date:   Fri Mar 18 14:03:54 2011 -0700
+
+    CLOUDERA-BUILD. Disabling tests that currently break the jenkins test runs. The reason is that
+    these contain path name output, which seems to be problematic for the test result
+    diff command line.
+
+commit 2e066aa4531e2874e6dd2d1b2f4eb2b56b2708a9
+Author: marcel <marcel@cloudera.com>
+Date:   Fri Mar 18 14:03:54 2011 -0700
+
+    CLOUDERA-BUILD. disabling clientnegative/archive1.q
+
+commit d2d4eb041991f4fafb4020895a24bde223a52d0c
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Fri Mar 18 07:52:53 2011 -0700
+
+    CLOUDERA-BUILD. Making sure Hive looks for Hadoop tarball in local Maven repo first.
+
+commit 5221172280c5e73c40ffc22bf9d2c83e4de8ddcb
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Tue Mar 8 12:51:48 2011 -0800
+
+    CLOUDERA-BUILD. Changing releases repo to point to staging area.
+
+commit 782e3fa5d6feabf838718b51beeab2a026f26e25
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Mon Mar 7 14:32:02 2011 -0800
+
+    CLOUDERA-BUILD. Fixing source jar generation.
+
+commit 0c8de790bcb5a68254a456d556ffc8b00ce2dc0b
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Mon Mar 7 11:42:18 2011 -0800
+
+    CLOUDERA-BUILD. Generate source jars, and use original jar files as
+    Maven artifacts. DISTRO-109.
+
+commit fdf2a1daf8f64ff9790d2f232ab22011119c7c67
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Mon Mar 7 10:51:41 2011 -0800
+
+    CLOUDERA-BUILD. Simplifying repository setup.
+
+commit e898297f24e4c2f029797512f836cd9ffb913871
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Sun Mar 6 18:42:38 2011 -0800
+
+    CLOUDERA-BUILD. Adding relativePath to cloudera-pom.xml.
+
+commit 075aaf78a71bada250d88517a83df4eb8c3fb379
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Tue Mar 1 08:58:26 2011 -0800
+
+    CLOUDERA-BUILD. Not deleting cdh.build.properties in clean.
+
+commit b6c3edeba8ac4eb920626dbecc1b338805f8a03d
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Mon Feb 28 11:13:56 2011 -0800
+
+    CLOUDERA-BUILD. Running mvn to generate properties before anything else
+    happens. Also only running it if we don't already have cdh.build.properties
+    existing - no need to re-run in that case.
+
+commit ecd3b85abeca3de5d327ed23ba16073e531eacbd
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Mon Feb 28 08:52:53 2011 -0800
+
+    CLOUDERA-BUILD. Hive is depending on an outdated version of HBase.
+    
+    * Removing HBase from libraries.properties, which we don't modify in
+    the build any more, and putting it in cdh.build.properties instead,
+    which we *do* modify, and making sure it's pulling in our version.
+
+commit 5b920c1e0326078ccaccb331dd37d9f3a3bafe30
+Author: Jenkins <dev-kitchen@cloudera.com>
+Date:   Sat Feb 19 00:28:13 2011 -0800
+
+    CLOUDERA-BUILD. Preparing for cdh3u0 development.
+
+commit 4386053aa2d094a4f1ed95730ce73aa1c6dd6c59
+Author: Jenkins <dev-kitchen@cloudera.com>
+Date:   Sat Feb 19 00:27:53 2011 -0800
+
+    CLOUDERA-BUILD. Preparing for CDH3B4 release.
+
+commit cc8f87a34d5c0ec1eb4a258a4270ed9de285705e
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Fri Feb 18 14:30:19 2011 -0800
+
+    CLOUDERA-BUILD. Fixing hive-contrib artifact name.
+
+commit a8e4b669bce9ab1e17f7956b0de5c7cfafff7fc7
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Fri Feb 18 14:17:56 2011 -0800
+
+    CLOUDERA-BUILD. Fixing execute bits on Cloudera build scripts.
+
+commit e365823ee2b89c78606233459d3c4dccc002cd1e
+Author: carl <carl@cloudera.com>
+Date:   Fri Feb 18 13:00:07 2011 -0800
+
+    CLOUDERA_BUILD. Update install_hive script to copy metastore upgrade scripts
+
+commit 9427aa52445ee083a9ae394059a7b1edc5fa566b
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Wed Feb 16 18:36:54 2011 -0800
+
+    CLOUDERA-BUILD. Another compile attempt.
+
+commit dece0ce830daf6646b1df62e7a46909492ed6129
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Wed Feb 16 17:22:33 2011 -0800
+
+    CLOUDERA-BUILD. Fixing security version.
+
+commit 260ac8609ea80c7f89f33d15544e8ad845016da5
+Author: carl <carl@cloudera.com>
+Date:   Wed Feb 16 16:57:09 2011 -0800
+
+    CLOUDERA-BUILD. Satisfy unsecured shim compile-time deps by pulling down 0.20.1
+
+commit 0c3d95b13195f0943639ac0c880bba4f4e27d2da
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Wed Feb 16 16:07:28 2011 -0800
+
+    CLOUDERA-BUILD. Tweak for CDH Mavenization to handle change to hadoop tarball dependency since 0.6.0.
+
+commit f6b724f5b9e14cb9e46738169778bde61ddcf53f
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Wed Feb 16 15:52:45 2011 -0800
+
+    CLOUDERA-BUILD. Bumping up version to 0.7.0, making sure we don't have to change every POM every time in the future.
+
+commit d3b43aa3569b9e674a3113fc0cd46a0a4c5b76c2
+Author: Andrew Bayer <andrew.bayer@gmail.com>
+Date:   Thu Jan 27 15:36:08 2011 -0800
+
+    CLOUDERA-BUILD. Support CDH Mavenization.
+
+commit 3cc5750a399b34bbe167f4fe12d4d1698ca775d2
+Author: carl <carl@cloudera.com>
+Date:   Wed Feb 16 15:32:03 2011 -0800
+
+    CLOUDERA-BUILD. Add cloudera build directory and scripts.
