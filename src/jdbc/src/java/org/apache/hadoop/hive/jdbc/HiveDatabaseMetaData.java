@@ -958,9 +958,7 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
   }
 
   public boolean supportsResultSetType(int type) throws SQLException {
-    // Is this accurate? Pentaho's code shows:
-    // return type == ResultSet.TYPE_FORWARD_ONLY;
-    return true;
+    return type == ResultSet.TYPE_FORWARD_ONLY;
   }
 
   public boolean supportsSavepoints() throws SQLException {
