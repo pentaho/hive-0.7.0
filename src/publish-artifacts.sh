@@ -58,8 +58,8 @@ mvn deploy:deploy-file \
 done
 
 # Generate the POM file for the Hive JDBC Driver project
-JDBC_POM_TEMPLATE=$WORKSPACE/hive-jdbc-pom.template
-JDBC_POM_FILE_OUTPUT=$WORKSPACE/hive-jdbc-pom.xml
+JDBC_POM_TEMPLATE=$WORKSPACE/src/hive-jdbc-pom.template
+JDBC_POM_FILE_OUTPUT=$WORKSPACE/src/hive-jdbc-pom.xml
 echo "Generating $JDBC_POM_FILE_OUTPUT from $JDBC_POM_TEMPLATE ..."
 sed "s/\${hive.version}/$VERSION/;s/\${hadoop.version}/$HADOOP_VERSION/" $JDBC_POM_TEMPLATE > $JDBC_POM_FILE_OUTPUT
 
