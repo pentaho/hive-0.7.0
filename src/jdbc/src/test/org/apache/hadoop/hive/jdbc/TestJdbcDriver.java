@@ -51,9 +51,11 @@ public class TestJdbcDriver extends TestCase {
   private static String partitionedTableComment = "Partitioned table";
   private static String dataTypeTableName = "testDataTypeTable";
   private static String dataTypeTableComment = "Table with many column data types";
+  private static String preparedStatementTestTable = "testPreparedStmtTable";
   private final HiveConf conf;
   private final Path dataFilePath;
   private final Path dataTypeDataFilePath;
+  private final Path dataFilePathForPreparedStatementTests;
   private Connection con;
   private boolean standAloneServer = false;
 
@@ -64,6 +66,7 @@ public class TestJdbcDriver extends TestCase {
         .replace("c:", "");
     dataFilePath = new Path(dataFileDir, "kv1.txt");
     dataTypeDataFilePath = new Path(dataFileDir, "datatypes.txt");
+	dataFilePathForPreparedStatementTests = new Path(dataFileDir, "prepared_stmt.txt");
     standAloneServer = "true".equals(System
         .getProperty("test.service.standalone.server"));
   }
