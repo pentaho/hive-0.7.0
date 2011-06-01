@@ -10,7 +10,7 @@
 # PENTAHO_OPEN_REPO=file:///tmp/test-mvn-repo
 # WORKSPACE=`pwd`
 
-VERSION=0.7.0-pentaho-SNAPSHOT
+# VERSION=0.7.0-pentaho-SNAPSHOT
 HADOOP_VERSION=0.20.2-cdh3u0
 REPO_ID=pentaho
 HIVE_DIST_LIB_DIR=$WORKSPACE/src/build/dist/lib
