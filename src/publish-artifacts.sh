@@ -13,7 +13,7 @@
 VERSION=0.7.0-pentaho-SNAPSHOT
 HADOOP_VERSION=0.20.2-cdh3u0
 REPO_ID=pentaho
-HIVE_DIST_LIB_DIR=$WORKSPACE/build/dist/lib
+HIVE_DIST_LIB_DIR=$WORKSPACE/src/build/dist/lib
 
 JDBC_FNAME=hive-jdbc-$VERSION.jar
 JAR_DEPS="exec metastore service"
