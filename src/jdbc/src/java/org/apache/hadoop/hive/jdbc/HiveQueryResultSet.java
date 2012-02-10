@@ -144,11 +144,14 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
 
     String rowStr = "";
     try {
-      rowStr = (String) client.fetchOne();
-      rowsFetched++;
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Fetched row string: " + rowStr);
-      }
+
+      try {
+        rowStr = (String) client.fetchOne();
+        rowsFetched++;
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Fetched row string: " + rowStr);
+        }
+      } catch (Exception ex) { }
 
       if (!"".equals(rowStr)) {
         StructObjectInspector soi = (StructObjectInspector) serde.getObjectInspector();
