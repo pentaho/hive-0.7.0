@@ -561,10 +561,11 @@ public class HiveConnection implements java.sql.Connection {
    */
 
   public void setAutoCommit(boolean autoCommit) throws SQLException {
-    if(autoCommit) {
-      throw new SQLException("Method not supported - setAutoCommit(true)");
+    // getAutoCommit() always returns true - so 'true' is fine for
+    // consistency's sake
+    if(!autoCommit) {
+      throw new SQLException("Method not supported - setAutoCommit(false)");
     }
-    // we don't do commits, so 'false' is fine
   }
 
   /*
